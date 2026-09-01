@@ -60,24 +60,27 @@ def plot_heatmap(matrix: pd.DataFrame, title: str, output: str, show_variant_lab
     if show_variant_labels is None:
         show_variant_labels = n_variants <= 120
 
-    fig_w = min(max(8, 0.28 * n_samples), 40)
-    fig_h = min(max(6, 0.18 * n_variants), 40)
+    # Samples on the y-axis, variant positions on the x-axis.
+    plot_matrix = matrix.T
+
+    fig_w = min(max(8, 0.18 * n_variants), 40)
+    fig_h = min(max(6, 0.28 * n_samples), 40)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
 
     sns.heatmap(
-        matrix,
-        cmap="RdBu",
+        plot_matrix,
+        cmap="RdBu_r",  # blue = low allele frequency, red = high allele frequency
         vmin=0,
         vmax=1,
         cbar_kws={"label": "Allele frequency"},
-        yticklabels=show_variant_labels,
-        xticklabels=True,
-        mask=matrix.isna(),
+        xticklabels=show_variant_labels,
+        yticklabels=True,
+        mask=plot_matrix.isna(),
         ax=ax,
     )
     ax.set_facecolor("#dddddd")
-    ax.set_xlabel("Sample")
-    ax.set_ylabel("Variant position")
+    ax.set_xlabel("Variant position")
+    ax.set_ylabel("Sample")
     ax.set_title(title)
     plt.xticks(rotation=90)
     plt.tight_layout()
@@ -100,7 +103,7 @@ def main():
         dest="show_labels",
         action="store_true",
         default=None,
-        help="Force variant row labels on even for large heatmaps",
+        help="Force variant position labels on even for large heatmaps",
     )
     args = parser.parse_args()
 
