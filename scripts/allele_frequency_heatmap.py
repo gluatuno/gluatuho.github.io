@@ -50,7 +50,7 @@ def select_matrix(df: pd.DataFrame, gene: str) -> pd.DataFrame:
         subset = df
 
     sample_cols = [c for c in df.columns if c not in ANNOTATION_COLS]
-    matrix = subset.set_index("variant")[sample_cols].apply(pd.to_numeric, errors="coerce")
+    matrix = subset.set_index("pos")[sample_cols].apply(pd.to_numeric, errors="coerce")
     matrix = matrix.dropna(axis=1, how="all")  # drop samples with no values for this selection
     return matrix
 
@@ -66,7 +66,7 @@ def plot_heatmap(matrix: pd.DataFrame, title: str, output: str, show_variant_lab
 
     sns.heatmap(
         matrix,
-        cmap="viridis",
+        cmap="RdBu",
         vmin=0,
         vmax=1,
         cbar_kws={"label": "Allele frequency"},
@@ -77,7 +77,7 @@ def plot_heatmap(matrix: pd.DataFrame, title: str, output: str, show_variant_lab
     )
     ax.set_facecolor("#dddddd")
     ax.set_xlabel("Sample")
-    ax.set_ylabel("Variant")
+    ax.set_ylabel("Variant position")
     ax.set_title(title)
     plt.xticks(rotation=90)
     plt.tight_layout()
