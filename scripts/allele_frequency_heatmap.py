@@ -71,14 +71,19 @@ def filter_sample_columns(sample_cols, patients=None, cells=None, weeks=None, re
     return kept
 
 
-def select_matrix(df: pd.DataFrame, gene: str, patients=None, cells=None, weeks=None, resequenced=None) -> pd.DataFrame:
-    """Return a variants x samples allele-frequency matrix.
+def select_matrix(df: pd.DataFrame, gene: str, patients=None, cells=None, weeks=None, resequenced=None):
+    """Return (matrix, table) for the selected gene/whole-genome + sample filters.
 
     gene="whole_genome" keeps every variant; any other value filters rows
     to that gene (case-insensitive). patients/cells/weeks/resequenced (see
     filter_sample_columns) narrow which sample columns are considered.
     Samples with no frequency value anywhere in the selected rows are
     dropped from the result.
+
+    ``matrix`` is a variants (indexed by pos) x samples numeric frame, for
+    plotting. ``table`` is the same data with the 7 annotation columns
+    (variant, chrom, pos, ref, alt, gene, effect) followed by the kept
+    sample columns, for writing out alongside the heatmap.
     """
     if gene.lower() != "whole_genome":
         available = sorted(df["gene"].dropna().unique())
@@ -94,9 +99,13 @@ def select_matrix(df: pd.DataFrame, gene: str, patients=None, cells=None, weeks=
     if not sample_cols:
         raise ValueError("No sample columns matched the given --patient/--cell/--week/--resequenced filters")
 
-    matrix = subset.set_index("pos")[sample_cols].apply(pd.to_numeric, errors="coerce")
-    matrix = matrix.dropna(axis=1, how="all")  # drop samples with no values for this selection
-    return matrix
+    numeric = subset[sample_cols].apply(pd.to_numeric, errors="coerce")
+    numeric = numeric.dropna(axis=1, how="all")  # drop samples with no values for this selection
+    kept_sample_cols = list(numeric.columns)
+
+    table = pd.concat([subset[ANNOTATION_COLS], numeric], axis=1)
+    matrix = table.set_index("pos")[kept_sample_cols]
+    return matrix, table
 
 
 def plot_heatmap(matrix: pd.DataFrame, title: str, output: str, show_variant_labels=None) -> None:
@@ -143,6 +152,11 @@ def main():
     )
     parser.add_argument("--output", default=None, help="Output image path (default: heatmap_<gene>[_<filters>].png)")
     parser.add_argument(
+        "--table",
+        default=None,
+        help="Output TSV path for the table behind the heatmap (default: same name as --output with .tsv)",
+    )
+    parser.add_argument(
         "--show-labels",
         dest="show_labels",
         action="store_true",
@@ -167,7 +181,7 @@ def main():
     resequenced = True if args.resequenced_only else (False if args.exclude_resequenced else None)
 
     df = load_variant_table(args.file)
-    matrix = select_matrix(df, args.gene, patients=patients, cells=cells, weeks=weeks, resequenced=resequenced)
+    matrix, table = select_matrix(df, args.gene, patients=patients, cells=cells, weeks=weeks, resequenced=resequenced)
 
     if matrix.shape[1] == 0:
         raise SystemExit(f"No samples have allele-frequency values for gene={args.gene!r} with the given filters")
@@ -194,6 +208,10 @@ def main():
         output = "heatmap_" + "_".join(suffix_parts) + ".png"
 
     plot_heatmap(matrix, title, output, show_variant_labels=args.show_labels)
+
+    table_output = args.table or str(Path(output).with_suffix(".tsv"))
+    table.to_csv(table_output, sep="\t", index=False)
+    print(f"Saved table ({table.shape[0]} variants x {table.shape[1] - len(ANNOTATION_COLS)} samples) to {table_output}")
 
 
 if __name__ == "__main__":
